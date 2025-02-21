@@ -1,18 +1,52 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-cors({ origin: '*' });
+const rateLimit = require('express-rate-limit');
 
-const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100, 
+    message: 'Muitas requisições. Tente novamente mais tarde.'
+});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+
+app.use(cors({ origin: '*' }));
+app.use(limiter);
+
+
+const fetch = async (url, options = {}, timeout = 10000) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+        const response = await import('node-fetch').then(({ default: fetch }) =>
+            fetch(url, { ...options, signal: controller.signal })
+        );
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+    }
+};
 
 app.get('/api/consulta-cpf/:cpf', async (req, res) => {
     const { cpf } = req.params;
-    const apiKey = process.env.API_KEY || "sk_01jez1gk2zk8dyr0bsja4mrc6201jez1gk30e7e50b862pppsq9c";
+    const apiKey = process.env.API_KEY;
+
+  
+    const cpfRegex = /^\d{11}$/;
+    if (!cpfRegex.test(cpf)) {
+        return res.status(400).json({ error: 'CPF inválido' });
+    }
+
+    
+    if (!apiKey) {
+        return res.status(500).json({ error: 'Chave da API não configurada' });
+    }
 
     try {
         const apiUrl = `https://api.wiseapi.io/v1/cpf/${cpf}`;
@@ -31,7 +65,7 @@ app.get('/api/consulta-cpf/:cpf', async (req, res) => {
         const data = await response.json();
         res.json(data);
     } catch (error) {
-        console.error('Erro no proxy:', error);
+        console.error('Erro no proxy:', { message: error.message, stack: error.stack });
         res.status(500).json({ error: 'Erro ao consultar o CPF' });
     }
 });
