@@ -1,21 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const rateLimit = require('express-rate-limit');
-
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100, 
-    message: 'Muitas requisições. Tente novamente mais tarde.'
-});
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-
-app.use(cors({ origin: '*' }));
-app.use(limiter);
-
 
 const fetch = async (url, options = {}, timeout = 10000) => {
     const controller = new AbortController();
@@ -33,17 +18,20 @@ const fetch = async (url, options = {}, timeout = 10000) => {
     }
 };
 
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors({ origin: '*' }));
+
 app.get('/api/consulta-cpf/:cpf', async (req, res) => {
     const { cpf } = req.params;
     const apiKey = process.env.API_KEY;
 
-  
     const cpfRegex = /^\d{11}$/;
     if (!cpfRegex.test(cpf)) {
         return res.status(400).json({ error: 'CPF inválido' });
     }
 
-    
     if (!apiKey) {
         return res.status(500).json({ error: 'Chave da API não configurada' });
     }
@@ -69,7 +57,6 @@ app.get('/api/consulta-cpf/:cpf', async (req, res) => {
         res.status(500).json({ error: 'Erro ao consultar o CPF' });
     }
 });
-
 
 app.listen(PORT, () => {
     console.log(`Servidor proxy rodando na porta ${PORT}`);
